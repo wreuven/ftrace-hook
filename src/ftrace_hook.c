@@ -20,6 +20,13 @@
 
 #include "udp.h"
 
+#if 0
+
+#define	udp_initmod()
+#define udp_cleanmod()
+
+#endif
+
 MODULE_DESCRIPTION("Example module hooking open() and close() via ftrace");
 MODULE_AUTHOR("ilammy <a.lozovsky@gmail.com>");
 MODULE_LICENSE("GPL");
@@ -226,19 +233,18 @@ static asmlinkage long fh_do_sys_open(int dfd, const char __user *filename, int 
 			umode_t mode)
 {
 	long ret;
-	
+	char *kernel_filename;
+
+	kernel_filename = duplicate_filename(filename);
 
 	ret = real_do_sys_open(dfd, filename, flags, mode);
 
 	if (ret > 0) {
-		char *kernel_filename;
-
-		kernel_filename = duplicate_filename(filename);
-
 		pr_info("open(%s) after (fh=%ld) (pid=%d)\n", kernel_filename, ret, current->pid);
-
-		kfree(kernel_filename);
+		udp_send(kernel_filename);
 	}
+
+	kfree(kernel_filename);
 
 	return ret;
 }
