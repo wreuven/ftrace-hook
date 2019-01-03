@@ -2,6 +2,10 @@
  * Hooking kernel functions using ftrace framework
  *
  * Copyright (c) 2018 ilammy
+ *  
+ * Mods by RW to hook i/o functions and forward all
+ * desired info from these functions to a UNIX Domain Socket
+ *
  */
 
 #define pr_fmt(fmt) "ftrace_hook: " fmt
