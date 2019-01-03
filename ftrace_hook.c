@@ -14,7 +14,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-MODULE_DESCRIPTION("Example module hooking clone() and execve() via ftrace");
+MODULE_DESCRIPTION("Example module hooking open() and execve() via ftrace");
 MODULE_AUTHOR("ilammy <a.lozovsky@gmail.com>");
 MODULE_LICENSE("GPL");
 
@@ -197,26 +197,6 @@ void fh_remove_hooks(struct ftrace_hook *hooks, size_t count)
 #pragma GCC optimize("-fno-optimize-sibling-calls")
 #endif
 
-static asmlinkage long (*real_sys_clone)(unsigned long clone_flags,
-		unsigned long newsp, int __user *parent_tidptr,
-		int __user *child_tidptr, unsigned long tls);
-
-static asmlinkage long fh_sys_clone(unsigned long clone_flags,
-		unsigned long newsp, int __user *parent_tidptr,
-		int __user *child_tidptr, unsigned long tls)
-{
-	long ret;
-
-	pr_info("clone() before\n");
-
-	ret = real_sys_clone(clone_flags, newsp, parent_tidptr,
-		child_tidptr, tls);
-
-	pr_info("clone() after: %ld\n", ret);
-
-	return ret;
-}
-
 static char *duplicate_filename(const char __user *filename)
 {
 	char *kernel_filename;
@@ -232,6 +212,31 @@ static char *duplicate_filename(const char __user *filename)
 
 	return kernel_filename;
 }
+
+static asmlinkage long (*real_do_sys_open)(int dfd, const char __user *filename, int flags,
+			umode_t mode);
+
+static asmlinkage long fh_do_sys_open(int dfd, const char __user *filename, int flags,
+			umode_t mode)
+{
+	long ret;
+	
+
+	ret = real_do_sys_open(dfd, filename, flags, mode);
+
+	if (ret > 0) {
+		char *kernel_filename;
+
+		kernel_filename = duplicate_filename(filename);
+
+		pr_info("open(%s) after (fh=%ld)\n", kernel_filename, ret);
+
+		kfree(kernel_filename);
+	}
+
+	return ret;
+}
+
 
 static asmlinkage long (*real_sys_execve)(const char __user *filename,
 		const char __user *const __user *argv,
@@ -265,7 +270,7 @@ static asmlinkage long fh_sys_execve(const char __user *filename,
 	}
 
 static struct ftrace_hook demo_hooks[] = {
-	HOOK("sys_clone",  fh_sys_clone,  &real_sys_clone),
+	HOOK("do_sys_open",  fh_do_sys_open, &real_do_sys_open),
 	HOOK("sys_execve", fh_sys_execve, &real_sys_execve),
 };
 
