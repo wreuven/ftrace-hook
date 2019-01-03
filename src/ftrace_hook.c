@@ -18,7 +18,9 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-MODULE_DESCRIPTION("Example module hooking open() and execve() via ftrace");
+#include "udp.h"
+
+MODULE_DESCRIPTION("Example module hooking open() and close() via ftrace");
 MODULE_AUTHOR("ilammy <a.lozovsky@gmail.com>");
 MODULE_LICENSE("GPL");
 
@@ -233,7 +235,7 @@ static asmlinkage long fh_do_sys_open(int dfd, const char __user *filename, int 
 
 		kernel_filename = duplicate_filename(filename);
 
-		pr_info("open(%s) after (fh=%ld)\n", kernel_filename, ret);
+		pr_info("open(%s) after (fh=%ld) (pid=%d)\n", kernel_filename, ret, current->pid);
 
 		kfree(kernel_filename);
 	}
@@ -242,26 +244,15 @@ static asmlinkage long fh_do_sys_open(int dfd, const char __user *filename, int 
 }
 
 
-static asmlinkage long (*real_sys_execve)(const char __user *filename,
-		const char __user *const __user *argv,
-		const char __user *const __user *envp);
+static asmlinkage long (*real_sys_close)(unsigned int fd);
 
-static asmlinkage long fh_sys_execve(const char __user *filename,
-		const char __user *const __user *argv,
-		const char __user *const __user *envp)
+static asmlinkage long fh_sys_close(unsigned int fd)
 {
 	long ret;
-	char *kernel_filename;
 
-	kernel_filename = duplicate_filename(filename);
+	ret = real_sys_close(fd);
 
-	pr_info("execve() before: %s\n", kernel_filename);
-
-	kfree(kernel_filename);
-
-	ret = real_sys_execve(filename, argv, envp);
-
-	pr_info("execve() after: %ld\n", ret);
+	pr_info("close() after: %ld\n", ret);
 
 	return ret;
 }
@@ -275,7 +266,7 @@ static asmlinkage long fh_sys_execve(const char __user *filename,
 
 static struct ftrace_hook demo_hooks[] = {
 	HOOK("do_sys_open",  fh_do_sys_open, &real_do_sys_open),
-	HOOK("sys_execve", fh_sys_execve, &real_sys_execve),
+	HOOK("sys_close", fh_sys_close, &real_sys_close),
 };
 
 static int fh_init(void)
@@ -286,6 +277,8 @@ static int fh_init(void)
 	if (err)
 		return err;
 
+	udp_initmod();
+
 	pr_info("module loaded\n");
 
 	return 0;
@@ -295,6 +288,8 @@ module_init(fh_init);
 static void fh_exit(void)
 {
 	fh_remove_hooks(demo_hooks, ARRAY_SIZE(demo_hooks));
+
+	udp_cleanmod();
 
 	pr_info("module unloaded\n");
 }
