@@ -8,6 +8,14 @@
  *
  */
 
+asmlinkage long sys_read(unsigned int fd, char * buf, unsigned long count)
+asmlinkage long sys_write(unsigned int fd, const char * buf, unsigned long count)
+asmlinkage int sys_llseek(unsigned int fd, unsigned long offset_high,
+			  unsigned long offset_low, loff_t * result,
+			  unsigned int origin);
+asmlinkage long sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
+
+
 #define pr_fmt(fmt) "ftrace_hook: " fmt
 
 #include <linux/ftrace.h>
@@ -242,6 +250,7 @@ static asmlinkage long fh_do_sys_open(int dfd, const char __user *filename, int 
 	if (ret > 0) {
 		pr_info("open(%s) after (fh=%ld) (pid=%d)\n", kernel_filename, ret, current->pid);
 		udp_send(kernel_filename);
+		udp_send("\n");
 	}
 
 	kfree(kernel_filename);
